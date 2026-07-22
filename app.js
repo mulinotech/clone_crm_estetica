@@ -174,6 +174,16 @@ async function initializeDatabase() {
       await connection.query('ALTER TABLE leads ADD COLUMN source VARCHAR(50) DEFAULT "site"');
       console.log('Coluna source adicionada em leads.');
     } catch(e) {}
+    // R3: Adicionar índice único no telefone para evitar duplicação
+    try {
+      await connection.query('CREATE UNIQUE INDEX idx_leads_whatsapp_unique ON leads (whatsapp)');
+      console.log('Indice unico idx_leads_whatsapp_unique criado em leads.whatsapp.');
+    } catch(e) {
+      // Índice pode já existir ou pode haver duplicatas existentes
+      if (e.code !== 'ER_DUP_KEYNAME') {
+        console.warn('Aviso ao criar indice unico em leads.whatsapp:', e.message);
+      }
+    }
     try {
       await connection.query('ALTER TABLE leads MODIFY COLUMN whatsapp VARCHAR(50) NOT NULL');
       console.log('Coluna whatsapp modificada para VARCHAR(50) em leads.');
@@ -441,9 +451,9 @@ app.delete('/api/treatment-catalog/:id', async function(req, res) {
 // Estado simulado em memória para Evolution API
 let SIMULATED_INSTANCES = [
   {
-    name: 'CRM_Estetica_Instancia',
+    name: 'Nathi_Estetica_Oficial',
     status: 'open',
-    number: '5511999999999',
+    number: '5515997569764',
   }
 ];
 
@@ -539,7 +549,7 @@ const EvolutionService = {
     if (!this.isConfigured()) {
       const inst = SIMULATED_INSTANCES.find(i => i.name === name);
       if (!inst) throw new Error('Instancia nao encontrada.');
-      const qrcodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://crmestetica.com/scan/${name}&color=4A3C35&bgcolor=FAF7F5`;
+      const qrcodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://nathi.estetica.com/scan/${name}&color=4A3C35&bgcolor=FAF7F5`;
       inst.qrcode = qrcodeUrl;
       return { qrcode: qrcodeUrl };
     }
@@ -572,7 +582,7 @@ const EvolutionService = {
     } catch (e) {
       console.error('Erro ao listar instancias:', e);
     }
-    return 'CRM_Estetica_Instancia';
+    return 'Nathi Estética Avançada_Oficial';
   }
 };
 
@@ -715,7 +725,7 @@ app.post('/api/gemini/suggest-reply', async function(req, res) {
     let historicoTexto = interactions.map(i => `${i.direction === 'in' ? 'Cliente' : 'Clínica'}: ${i.content}`).join('\n');
     if (!historicoTexto) historicoTexto = "(Nenhum histórico de mensagens ainda)";
 
-    const prompt = `Você é um Concierge de uma Clínica de Estética Premium.
+    const prompt = `Você é um Concierge de uma Clínica de Estética Premium chamada Nathi Estética.
 Seu objetivo é sugerir uma ÚNICA mensagem de resposta (curta, humana, persuasiva e elegante) para enviar ao cliente no WhatsApp.
 O foco é acolher o cliente e tentar agendar uma avaliação estética presencial.
 
@@ -1084,7 +1094,7 @@ app.post('/api/evolution/instances/simulate-connect', function(req, res) {
   const inst = SIMULATED_INSTANCES.find(i => i.name === instanceName);
   if (inst) {
     inst.status = 'open';
-    inst.number = number || '5511999999999';
+    inst.number = number || '5515997569764';
     inst.qrcode = undefined;
   }
   res.json({ success: true });
@@ -1092,63 +1102,143 @@ app.post('/api/evolution/instances/simulate-connect', function(req, res) {
 
 // 14. Webhook WhatsApp Evolution
 app.post('/api/webhook/whatsapp', async function(req, res) {
-  const payload = req.body;
-  const messageData = payload.data || payload;
-  const key = messageData.key;
-  if (key && key.fromMe) {
-    return res.json({ status: 'ignored' });
-  }
-  const senderJid = key?.remoteJid || '';
-  const phone = senderJid.split('@')[0];
-  const contactName = messageData.pushName || 'Contato WhatsApp';
-  
-  const messageType = messageData.messageType || 'conversation';
-  let content = '';
-  if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
-    content = messageData.message?.conversation || messageData.message?.extendedTextMessage?.text || '';
-  } else if (messageType === 'imageMessage') {
-    const caption = messageData.message?.imageMessage?.caption || '';
-    content = caption ? `[Imagem]: ${caption}` : '[Imagem Recebida]';
-  } else {
-    return res.json({ status: 'unsupported' });
-  }
-
-  if (!phone) return res.status(400).json({ error: 'No phone' });
-
   try {
+    // R2: Validação defensiva do payload
+    const payload = req.body;
+    if (!payload || typeof payload !== 'object') {
+      console.warn('[Webhook WhatsApp] Payload inválido ou vazio', { payload });
+      return res.status(400).json({ error: 'Invalid payload' });
+    }
+
+    const messageData = payload.data || payload;
+    if (!messageData || typeof messageData !== 'object') {
+      console.warn('[Webhook WhatsApp] messageData inválido', { messageData });
+      return res.status(400).json({ error: 'Invalid message data' });
+    }
+
+    const key = messageData.key;
+    if (!key || typeof key !== 'object') {
+      console.warn('[Webhook WhatsApp] key ausente ou inválido', { key });
+      return res.status(400).json({ error: 'Missing or invalid key' });
+    }
+
+    // Ignorar mensagens enviadas pela própria clínica
+    if (key.fromMe) {
+      return res.status(200).json({ status: 'ignored', reason: 'fromMe' });
+    }
+
+    // R2: Guard clause para remoteJid antes de split
+    const senderJid = key.remoteJid;
+    if (!senderJid || typeof senderJid !== 'string' || !senderJid.includes('@')) {
+      console.warn('[Webhook WhatsApp] remoteJid ausente ou malformado', { senderJid });
+      return res.status(400).json({ error: 'Invalid or missing remoteJid' });
+    }
+
+    const phone = senderJid.split('@')[0];
+    if (!phone || phone.length < 10) {
+      console.warn('[Webhook WhatsApp] Telefone inválido extraído', { phone, senderJid });
+      return res.status(400).json({ error: 'Invalid phone number' });
+    }
+
+    const contactName = messageData.pushName || 'Contato WhatsApp';
+
+    const messageType = messageData.messageType || 'conversation';
+    let content = '';
+    if (messageType === 'conversation' || messageType === 'extendedTextMessage') {
+      content = messageData.message?.conversation || messageData.message?.extendedTextMessage?.text || '';
+    } else if (messageType === 'imageMessage') {
+      const caption = messageData.message?.imageMessage?.caption || '';
+      content = caption ? `[Imagem]: ${caption}` : '[Imagem Recebida]';
+    } else {
+      console.info('[Webhook WhatsApp] Tipo de mensagem não suportado', { messageType });
+      return res.status(200).json({ status: 'unsupported', messageType });
+    }
+
     // Buscar se cliente ou lead já existe
-    let [clients] = await pool.query('SELECT id FROM clients WHERE REPLACE(phone, "+", "") = ?', [phone]);
-    let [leads] = await pool.query('SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ?', [phone]);
-    
+    const [clients] = await pool.query('SELECT id FROM clients WHERE REPLACE(phone, "+", "") = ?', [phone]);
+    const [leads] = await pool.query('SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ?', [phone]);
+
     let targetId = '';
     if (clients.length > 0) {
       targetId = clients[0].id;
     } else if (leads.length > 0) {
       targetId = leads[0].id;
     } else {
-      // Capturar como novo lead automaticamente
+      // R3: Evitar duplicação de leads por corrida (INSERT ... ON DUPLICATE KEY ou transação)
+      // Usando INSERT IGNORE para prevenir duplicação por telefone único
       targetId = 'l_' + Math.random().toString(36).substring(2, 9);
-      await pool.query('INSERT INTO leads (id, name, whatsapp, treatment, status) VALUES (?, ?, ?, ?, ?)', [
-        targetId, contactName, phone, 'Geral', 'novo'
-      ]);
-      const welcome = `Seja muito bem-vindo(a) à nossa Clínica de Estética! ✨\n\nRecebemos sua mensagem por aqui e nosso atendimento já está ciente de seu contato. Como podemos ajudar no seu dia de beleza e cuidados? 🌸`;
-      const instanceName = await EvolutionService.getInstanceName();
-      await EvolutionService.sendText(instanceName, phone, welcome);
-      
-      const interactionId = 'i_' + Math.random().toString(36).substring(2, 9);
-      await pool.query('INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)', [
-        interactionId, targetId, 'whatsapp', welcome, 'out'
-      ]);
+
+      // Verificar novamente dentro de uma transação para evitar race condition
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+
+        const [existingLeads] = await connection.query(
+          'SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ? FOR UPDATE',
+          [phone]
+        );
+
+        if (existingLeads.length > 0) {
+          // Lead criado por outra requisição concorrente
+          targetId = existingLeads[0].id;
+          await connection.commit();
+        } else {
+          // Criar novo lead
+          await connection.query(
+            'INSERT INTO leads (id, name, whatsapp, treatment, status, source) VALUES (?, ?, ?, ?, ?, ?)',
+            [targetId, contactName, phone, 'Geral', 'novo', 'whatsapp']
+          );
+          await connection.commit();
+
+          // R4: Envio Evolution com try/catch para não crashar se falhar
+          try {
+            const welcome = `Seja muito bem-vinda à Nathi Estética Avançada! ✨\n\nRecebemos sua mensagem por aqui e nosso concierge de beleza já está ciente de seu contato. Como podemos ajudar no seu dia de beleza e cuidados? 🌸`;
+            const instanceName = await EvolutionService.getInstanceName();
+            await EvolutionService.sendText(instanceName, phone, welcome);
+
+            const interactionId = 'i_' + Math.random().toString(36).substring(2, 9);
+            await pool.query(
+              'INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)',
+              [interactionId, targetId, 'whatsapp', welcome, 'out']
+            );
+          } catch (sendError) {
+            console.error('[Webhook WhatsApp] Falha ao enviar boas-vindas, mas lead foi salvo', {
+              error: sendError.message,
+              phone,
+              targetId
+            });
+            // Não lançar erro - lead foi salvo com sucesso, falha no envio não é crítica
+          }
+        }
+      } catch (txError) {
+        await connection.rollback();
+        throw txError;
+      } finally {
+        connection.release();
+      }
     }
 
+    // Registrar interação de entrada
     const newInteractionId = 'i_' + Math.random().toString(36).substring(2, 9);
-    await pool.query('INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)', [
-      newInteractionId, targetId, 'whatsapp', content, 'in'
-    ]);
+    await pool.query(
+      'INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)',
+      [newInteractionId, targetId, 'whatsapp', content, 'in']
+    );
 
-    res.json({ success: true });
+    console.info('[Webhook WhatsApp] Mensagem processada com sucesso', { phone, targetId, messageType });
+    return res.status(200).json({ success: true });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('[Webhook WhatsApp] Erro ao processar webhook', {
+      error: error.message,
+      stack: error.stack
+    });
+    // Retornar 200 para Evolution não retentar indefinidamente
+    return res.status(200).json({
+      success: false,
+      error: 'Internal processing error',
+      logged: true
+    });
   }
 });
 
