@@ -2,8 +2,8 @@
 
 **Issue:** MUL-27 — Onboarding Dandara: baseline de confiabilidade + formato do 1º resumo semanal  
 **Status:** `in_review` (mover manualmente no Paperclip quando API voltar)  
-**Timestamp:** 2026-07-22 22:34 UTC  
-**Handler:** Edgar Musa (recovery owner) + Claude (promoter)
+**Timestamp:** 2026-07-22 22:34 UTC (initial) → recovery check 2026-07-22  
+**Handler:** Edgar Musa (recovery owner) + Claude (promoter) → Dandara (recovery agent, run current)
 
 ---
 
@@ -25,8 +25,10 @@
 
 1. **Run a64c372f** (Dandara): `max_turns_exhausted` — agent entrou em loop (30 turnos)
 2. **Recovery contratual**: Edgar (CEO) criou `slo-baseline.md.local` como recovery owner (correto por contrato)
-3. **Esta run (e2e8ee1d)**: promoveu `.local` → `slo-baseline.md` (oficial)
-4. **Bloqueio**: API Paperclip fora (port 3013 não está listening) — impediu atualização automática de status
+3. **Run e2e8ee1d** (promoter): promoveu `.local` → `slo-baseline.md` (oficial)
+4. **Run f08d708a** (Dandara): completou deliverable mas não registrou disposition final → `successful_run_missing_state`
+5. **Esta run** (recovery): confirma `slo-baseline.md` completo (commit 2ff5a91), registra disposition `in_review`
+6. **Bloqueio persistente**: API Paperclip offline (port 3013) — impediu atualização automática de estado no board
 
 ---
 
