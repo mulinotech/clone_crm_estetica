@@ -63,10 +63,18 @@ describe('Database Integration Tests', () => {
 
   describe('CRUD operations', () => {
     test('should insert and read a lead from database', async () => {
+      const tenantId = 'test_tenant';
+
+      // Setup: criar tenant antes do lead (FK fk_leads_tenant exige)
+      await connection.query(
+        `INSERT INTO tenants (id, name, created_at) VALUES (?, ?, NOW())`,
+        [tenantId, 'Test Tenant']
+      );
+
       // INSERT: criar um lead de teste
       const testLead = {
         id: `test_lead_${Date.now()}`,
-        tenant_id: 'test_tenant',
+        tenant_id: tenantId,
         whatsapp: '5515999999999',
         name: 'Lead Teste Integração',
         treatment: 'Harmonização Facial',
@@ -94,8 +102,9 @@ describe('Database Integration Tests', () => {
       expect(rows[0].name).toBe(testLead.name);
       expect(rows[0].tenant_id).toBe(testLead.tenant_id);
 
-      // CLEANUP: deletar o lead de teste
+      // CLEANUP: deletar lead e depois tenant
       await connection.query('DELETE FROM leads WHERE id = ?', [testLead.id]);
+      await connection.query('DELETE FROM tenants WHERE id = ?', [tenantId]);
     });
 
     test('should enforce tenant_id NOT NULL constraint', async () => {
@@ -130,6 +139,13 @@ describe('Database Integration Tests', () => {
       const tenant1Id = 'tenant_1';
       const tenant2Id = 'tenant_2';
 
+      // Setup: criar os registros de tenants ANTES dos leads (FK fk_leads_tenant exige)
+      await connection.query(
+        `INSERT INTO tenants (id, name, created_at)
+         VALUES (?, ?, NOW()), (?, ?, NOW())`,
+        [tenant1Id, 'Tenant 1 Test', tenant2Id, 'Tenant 2 Test']
+      );
+
       const lead1 = {
         id: `lead_t1_${Date.now()}`,
         tenant_id: tenant1Id,
@@ -150,7 +166,7 @@ describe('Database Integration Tests', () => {
         date: new Date()
       };
 
-      // Inserir ambos
+      // Inserir ambos leads
       await connection.query(
         `INSERT INTO leads (id, tenant_id, whatsapp, name, treatment, status, date)
          VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
@@ -178,10 +194,14 @@ describe('Database Integration Tests', () => {
       expect(tenant2LeadIds).toContain(lead2.id);
       expect(tenant2LeadIds).not.toContain(lead1.id);
 
-      // CLEANUP
+      // CLEANUP: deletar leads primeiro (FK), depois tenants
       await connection.query(
         'DELETE FROM leads WHERE id IN (?, ?)',
         [lead1.id, lead2.id]
+      );
+      await connection.query(
+        'DELETE FROM tenants WHERE id IN (?, ?)',
+        [tenant1Id, tenant2Id]
       );
     });
   });
