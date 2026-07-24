@@ -94,3 +94,4 @@ jobs:
           DB_NAME: musa_crm_test
           SKIP_DB_INIT: 'false'
           NODE_ENV: test
+          RUN_INTEGRATION_TESTS: 'true'
