@@ -55,10 +55,15 @@ async function runMigration(migrationPath) {
 
   try {
     const migrationSQL = fs.readFileSync(migrationPath, 'utf-8');
+
+    // Log do tamanho do SQL para debug
+    console.log(`  → SQL length: ${migrationSQL.length} chars`);
+
     await connection.query(migrationSQL);
     console.log('  ✓ Migration aplicada com sucesso');
   } catch (error) {
     console.error(`  ✗ ERRO ao aplicar ${migrationName}:`, error.message);
+    console.error(`  ✗ Stack trace:`, error.stack);
     throw error;
   } finally {
     await connection.end();
