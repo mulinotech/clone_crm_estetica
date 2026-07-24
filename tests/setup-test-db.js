@@ -128,19 +128,6 @@ async function main() {
   console.log('='.repeat(60));
   console.log('MUL-37: Setup do banco de teste para CI');
   console.log('='.repeat(60));
-  console.log('[DEBUG] Admin config:', {
-    host: adminConfig.host,
-    user: adminConfig.user,
-    hasPassword: !!adminConfig.password,
-    port: adminConfig.port
-  });
-  console.log('[DEBUG] DB config:', {
-    host: dbConfig.host,
-    user: dbConfig.user,
-    database: dbConfig.database,
-    hasPassword: !!dbConfig.password,
-    port: dbConfig.port
-  });
 
   try {
     // 1. Recriar banco (limpa estado anterior)
