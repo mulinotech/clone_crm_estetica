@@ -91,11 +91,11 @@ async function seedTestData() {
   const connection = await mysql.createConnection(dbConfig);
 
   try {
-    // Criar tenant de teste
+    // Criar tenant de teste (schema conforme 001_multi_tenant_schema.sql)
     await connection.query(
-      `INSERT INTO tenants (id, name, slug, status, created_at)
-       VALUES (?, ?, ?, ?, NOW())`,
-      ['test_tenant', 'Clínica de Teste', 'test-tenant', 'active']
+      `INSERT INTO tenants (id, nome, dominio, instancia_whatsapp, status, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      ['test_tenant', 'Clínica de Teste', 'test.local', 'test_instance', 'ativo']
     );
     console.log('  ✓ Tenant de teste criado (id: test_tenant)');
 

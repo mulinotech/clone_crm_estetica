@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(D:\\Mulino Tech\\Musa-CRM/scripts/paperclip-issue-update.sh:*)",
+      "Bash(D:\\Mulino Tech\\Musa-CRM/scripts/paperclip:*)",
+      "Bash(curl:*)",
+      "Bash(env)",
+      "Bash(env:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\rodri\\.paperclip\\instances\\default\\companies\\1df590ac-26aa-44d8-b8eb-0fd2077a218b",
+      "C:\\Users\\rodri\\.paperclip\\instances\\default\\companies\\1df590ac-26aa-44d8-b8eb-0fd2077a218b\\acp-engine\\agents\\48165ef3-2e19-42c3-ad53-f909b45ab5c4",
+      "C:\\Users\\rodri\\.paperclip\\instances\\default\\companies\\1df590ac-26aa-44d8-b8eb-0fd2077a218b\\acp-engine\\agents\\b3666ad8-83f3-4ab9-9196-c19314dfd3e1",
+      "C:\\Users\\rodri\\.paperclip\\instances\\default\\workspaces\\48165ef3-2e19-42c3-ad53-f909b45ab5c4",
+      "C:\\Users\\rodri\\.paperclip\\instances\\default\\workspaces\\b3666ad8-83f3-4ab9-9196-c19314dfd3e1"
+    ],
+    "defaultMode": "default"
+  }
+}

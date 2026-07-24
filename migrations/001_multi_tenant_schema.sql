@@ -1,7 +1,8 @@
--- MUL-31: Fase 1 — Schema multi-tenant
+-- MUL-38: Fase 1 — Transformação multi-tenant (após schema base)
 -- Migration idempotente: rodar múltiplas vezes é seguro (não quebra)
+-- IMPORTANTE: Esta migration só funciona após a 000_base_schema.sql
 -- Autor: Rafael von Siemens
--- Data: 2026-07-23
+-- Data: 2026-07-24 (revisão)
 
 -- ========================================
 -- 1. CRIAR TABELA TENANTS
