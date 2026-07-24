@@ -67,18 +67,18 @@ describe('Database Integration Tests', () => {
       const testLead = {
         id: `test_lead_${Date.now()}`,
         tenant_id: 'test_tenant',
-        phone: '5515999999999',
+        whatsapp: '5515999999999',
         name: 'Lead Teste Integração',
+        treatment: 'Harmonização Facial',
         status: 'novo',
-        source: 'test',
         date: new Date()
       };
 
       const [insertResult] = await connection.query(
-        `INSERT INTO leads (id, tenant_id, phone, name, status, source, date)
+        `INSERT INTO leads (id, tenant_id, whatsapp, name, treatment, status, date)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [testLead.id, testLead.tenant_id, testLead.phone, testLead.name,
-         testLead.status, testLead.source, testLead.date]
+        [testLead.id, testLead.tenant_id, testLead.whatsapp, testLead.name,
+         testLead.treatment, testLead.status, testLead.date]
       );
 
       expect(insertResult.affectedRows).toBe(1);
@@ -90,7 +90,7 @@ describe('Database Integration Tests', () => {
       );
 
       expect(rows.length).toBe(1);
-      expect(rows[0].phone).toBe(testLead.phone);
+      expect(rows[0].whatsapp).toBe(testLead.whatsapp);
       expect(rows[0].name).toBe(testLead.name);
       expect(rows[0].tenant_id).toBe(testLead.tenant_id);
 
@@ -102,9 +102,9 @@ describe('Database Integration Tests', () => {
       // Tentar inserir lead sem tenant_id deve falhar
       await expect(
         connection.query(
-          `INSERT INTO leads (id, phone, name, status, source, date)
+          `INSERT INTO leads (id, whatsapp, name, treatment, status, date)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          ['test_no_tenant', '5515888888888', 'Sem Tenant', 'novo', 'test', new Date()]
+          ['test_no_tenant', '5515888888888', 'Sem Tenant', 'Botox', 'novo', new Date()]
         )
       ).rejects.toThrow();
     });
@@ -116,9 +116,9 @@ describe('Database Integration Tests', () => {
       // Isso prova que o CI realmente exercita o banco (acceptance criterion 4)
       await expect(
         connection.query(
-          `INSERT INTO leads (id, tenant_id, phone, name, status, source, date)
+          `INSERT INTO leads (id, tenant_id, whatsapp, name, treatment, status, date)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          ['invalid_lead', null, '551599', 'Invalid', 'novo', 'test', 'invalid_date']
+          ['invalid_lead', null, '551599', 'Invalid', 'Botox', 'novo', 'invalid_date']
         )
       ).rejects.toThrow();
     });
@@ -133,29 +133,29 @@ describe('Database Integration Tests', () => {
       const lead1 = {
         id: `lead_t1_${Date.now()}`,
         tenant_id: tenant1Id,
-        phone: '5515111111111',
+        whatsapp: '5515111111111',
         name: 'Lead Tenant 1',
+        treatment: 'Preenchimento',
         status: 'novo',
-        source: 'test',
         date: new Date()
       };
 
       const lead2 = {
         id: `lead_t2_${Date.now()}`,
         tenant_id: tenant2Id,
-        phone: '5515222222222',
+        whatsapp: '5515222222222',
         name: 'Lead Tenant 2',
+        treatment: 'Botox',
         status: 'novo',
-        source: 'test',
         date: new Date()
       };
 
       // Inserir ambos
       await connection.query(
-        `INSERT INTO leads (id, tenant_id, phone, name, status, source, date)
+        `INSERT INTO leads (id, tenant_id, whatsapp, name, treatment, status, date)
          VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
-        [lead1.id, lead1.tenant_id, lead1.phone, lead1.name, lead1.status, lead1.source, lead1.date,
-         lead2.id, lead2.tenant_id, lead2.phone, lead2.name, lead2.status, lead2.source, lead2.date]
+        [lead1.id, lead1.tenant_id, lead1.whatsapp, lead1.name, lead1.treatment, lead1.status, lead1.date,
+         lead2.id, lead2.tenant_id, lead2.whatsapp, lead2.name, lead2.treatment, lead2.status, lead2.date]
       );
 
       // Filtrar por tenant_1 — deve retornar apenas lead1
