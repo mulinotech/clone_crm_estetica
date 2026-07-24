@@ -2,7 +2,7 @@
 -- MUL-38: Schema base do Musa CRM (8 tabelas de negócio)
 -- Gerado mecanicamente a partir do app.js:initializeDatabase() (linhas 44-319)
 -- Data: 2026-07-24
--- Autor: Rafael von Siemens
+-- Autor: scripts/generate-base-schema-from-app.js
 --
 -- Este arquivo cria o schema base que o app.js inicializa no boot.
 -- Estado final consolidado: CREATE TABLE inicial + todos os ALTER TABLE aplicados.
@@ -10,9 +10,7 @@
 -- Deve rodar ANTES da 001_multi_tenant_schema.sql (que adiciona tenant_id).
 -- ============================================================================
 
--- Tabela 1: CLIENTS (sem dependências de FK)
--- Schema inicial: app.js linhas 73-82
--- ALTERs aplicados: linhas 228, 242-268 (phone VARCHAR(50), anamnese, image_base64, laudo)
+-- Tabela: clients
 CREATE TABLE IF NOT EXISTS clients (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -25,9 +23,7 @@ CREATE TABLE IF NOT EXISTS clients (
     laudo TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 2: SALESPEOPLE (sem dependências de FK)
--- Schema inicial: app.js linhas 110-120
--- ALTERs aplicados: linhas 235-240 (whatsapp VARCHAR(50)), 297-304 (password)
+-- Tabela: salespeople
 CREATE TABLE IF NOT EXISTS salespeople (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -39,9 +35,7 @@ CREATE TABLE IF NOT EXISTS salespeople (
     password VARCHAR(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 3: TREATMENT_CATALOG (sem dependências de FK)
--- Schema inicial: app.js linhas 123-134
--- ALTERs aplicados: linhas 306-313 (package_price)
+-- Tabela: treatment_catalog
 CREATE TABLE IF NOT EXISTS treatment_catalog (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -54,9 +48,7 @@ CREATE TABLE IF NOT EXISTS treatment_catalog (
     package_price DECIMAL(10,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 4: LEADS (FK opcional para salespeople, mas sem CONSTRAINT)
--- Schema inicial: app.js linhas 58-70
--- ALTERs aplicados: linhas 174-226 (salesperson_id, source, índice único whatsapp, whatsapp VARCHAR(50), email, status VARCHAR(50))
+-- Tabela: leads
 CREATE TABLE IF NOT EXISTS leads (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -72,9 +64,7 @@ CREATE TABLE IF NOT EXISTS leads (
     UNIQUE KEY idx_leads_whatsapp_unique (whatsapp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 5: INTERACTIONS (depende de clients)
--- Schema inicial: app.js linhas 98-107
--- Sem ALTERs posteriores
+-- Tabela: interactions
 CREATE TABLE IF NOT EXISTS interactions (
     id VARCHAR(50) PRIMARY KEY,
     client_id VARCHAR(50) NOT NULL,
@@ -84,9 +74,7 @@ CREATE TABLE IF NOT EXISTS interactions (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 6: TREATMENTS (depende de clients)
--- Schema inicial: app.js linhas 85-95
--- ALTERs aplicados: linhas 270-295 (price, total_sessions, completed_sessions)
+-- Tabela: treatments (com FK)
 CREATE TABLE IF NOT EXISTS treatments (
     id VARCHAR(50) PRIMARY KEY,
     client_id VARCHAR(50) NOT NULL,
@@ -100,9 +88,7 @@ CREATE TABLE IF NOT EXISTS treatments (
     completed_sessions INT DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 7: TREATMENT_PLANS (depende de clients)
--- Schema inicial: app.js linhas 137-151
--- Sem ALTERs posteriores
+-- Tabela: treatment_plans (com FK)
 CREATE TABLE IF NOT EXISTS treatment_plans (
     id VARCHAR(50) PRIMARY KEY,
     client_id VARCHAR(50) NOT NULL,
@@ -117,9 +103,7 @@ CREATE TABLE IF NOT EXISTS treatment_plans (
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Tabela 8: TREATMENT_SESSIONS (depende de treatment_plans)
--- Schema inicial: app.js linhas 154-172
--- Sem ALTERs posteriores
+-- Tabela: treatment_sessions (com FK)
 CREATE TABLE IF NOT EXISTS treatment_sessions (
     id VARCHAR(50) PRIMARY KEY,
     plan_id VARCHAR(50) NOT NULL,
