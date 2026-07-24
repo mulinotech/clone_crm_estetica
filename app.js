@@ -42,6 +42,12 @@ const dbConfig = {
 const pool = mysql.createPool(dbConfig);
 
 async function initializeDatabase() {
+  // Skip DB initialization in test mode
+  if (process.env.SKIP_DB_INIT === 'true') {
+    console.log('Database initialization skipped (test mode)');
+    return;
+  }
+
   try {
     const connection = await pool.getConnection();
     console.log('Conexao com o banco de dados MySQL realizada com sucesso!');
@@ -169,11 +175,22 @@ async function initializeDatabase() {
     try {
       await connection.query('ALTER TABLE leads ADD COLUMN salesperson_id VARCHAR(50) DEFAULT NULL');
       console.log('Coluna salesperson_id adicionada em leads.');
-    } catch(e) {}
+    } catch(e) {
+      // Column already exists is expected (ER_DUP_FIELDNAME); any other error is logged
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar salesperson_id em leads:', e.message);
+        throw e; // Fail-closed: unexpected migration errors must stop boot
+      }
+    }
     try {
       await connection.query('ALTER TABLE leads ADD COLUMN source VARCHAR(50) DEFAULT "site"');
       console.log('Coluna source adicionada em leads.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar source em leads:', e.message);
+        throw e;
+      }
+    }
     // R3: Adicionar índice único no telefone para evitar duplicação
     try {
       await connection.query('CREATE UNIQUE INDEX idx_leads_whatsapp_unique ON leads (whatsapp)');
@@ -187,56 +204,113 @@ async function initializeDatabase() {
     try {
       await connection.query('ALTER TABLE leads MODIFY COLUMN whatsapp VARCHAR(50) NOT NULL');
       console.log('Coluna whatsapp modificada para VARCHAR(50) em leads.');
-    } catch(e) {}
+    } catch(e) {
+      console.error('ERRO ao modificar whatsapp em leads:', e.message);
+      throw e;
+    }
     try {
       await connection.query('ALTER TABLE leads ADD COLUMN email VARCHAR(255) DEFAULT NULL');
       console.log('Coluna email adicionada em leads.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar email em leads:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query("ALTER TABLE leads MODIFY COLUMN status VARCHAR(50) DEFAULT 'novo'");
       console.log('Coluna status modificada para VARCHAR(50) em leads.');
-    } catch(e) {}
+    } catch(e) {
+      console.error('ERRO ao modificar status em leads:', e.message);
+      throw e;
+    }
     try {
       await connection.query('ALTER TABLE clients MODIFY COLUMN phone VARCHAR(50) NOT NULL');
       console.log('Coluna phone modificada para VARCHAR(50) em clients.');
-    } catch(e) {}
+    } catch(e) {
+      console.error('ERRO ao modificar phone em clients:', e.message);
+      throw e;
+    }
     try {
       await connection.query('ALTER TABLE salespeople MODIFY COLUMN whatsapp VARCHAR(50) NOT NULL');
       console.log('Coluna whatsapp modificada para VARCHAR(50) em salespeople.');
-    } catch(e) {}
+    } catch(e) {
+      console.error('ERRO ao modificar whatsapp em salespeople:', e.message);
+      throw e;
+    }
     // Add anamnese to clients
     try {
       await connection.query('ALTER TABLE clients ADD COLUMN anamnese TEXT');
       console.log('Coluna anamnese adicionada em clients.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar anamnese em clients:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE clients ADD COLUMN image_base64 LONGTEXT');
       console.log('Coluna image_base64 adicionada em clients.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar image_base64 em clients:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE clients ADD COLUMN laudo TEXT');
       console.log('Coluna laudo adicionada em clients.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar laudo em clients:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE treatments ADD COLUMN price DECIMAL(10,2) DEFAULT NULL');
       console.log('Coluna price adicionada em treatments.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar price em treatments:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE treatments ADD COLUMN total_sessions INT DEFAULT 1');
       console.log('Coluna total_sessions adicionada em treatments.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar total_sessions em treatments:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE treatments ADD COLUMN completed_sessions INT DEFAULT 1');
       console.log('Coluna completed_sessions adicionada em treatments.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar completed_sessions em treatments:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE salespeople ADD COLUMN password VARCHAR(255) DEFAULT NULL');
       console.log('Coluna password adicionada em salespeople.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar password em salespeople:', e.message);
+        throw e;
+      }
+    }
     try {
       await connection.query('ALTER TABLE treatment_catalog ADD COLUMN package_price DECIMAL(10,2) DEFAULT NULL');
       console.log('Coluna package_price adicionada em treatment_catalog.');
-    } catch(e) {}
+    } catch(e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') {
+        console.error('ERRO ao adicionar package_price em treatment_catalog:', e.message);
+        throw e;
+      }
+    }
 
     connection.release();
   } catch (error) {
@@ -246,6 +320,15 @@ async function initializeDatabase() {
 initializeDatabase();
 
 // ROTAS DO CRM
+
+// Health check endpoint for monitoring and tests
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'musa-crm'
+  });
+});
 
 // 1. Listar todos os leads
 app.get('/api/leads', async function(req, res) {
@@ -1455,7 +1538,13 @@ if (fs.existsSync(path.dirname(SOCKET_PATH))) {
   });
 } else {
   // Ambiente local - escutar em uma porta TCP normal
-  app.listen(PORT, function() {
-    console.log('Servidor rodando na porta ' + PORT);
-  });
+  // Only start server if not in test mode
+  if (process.env.NODE_ENV !== 'test' && process.env.SKIP_DB_INIT !== 'true') {
+    app.listen(PORT, function() {
+      console.log('Servidor rodando na porta ' + PORT);
+    });
+  }
 }
+
+// Export app for testing
+module.exports = app;
