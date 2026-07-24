@@ -67,8 +67,8 @@ describe('Database Integration Tests', () => {
 
       // Setup: criar tenant antes do lead (FK fk_leads_tenant exige)
       await connection.query(
-        `INSERT INTO tenants (id, name, created_at) VALUES (?, ?, NOW())`,
-        [tenantId, 'Test Tenant']
+        `INSERT INTO tenants (id, nome, dominio, created_at) VALUES (?, ?, ?, NOW())`,
+        [tenantId, 'Test Tenant', 'test-tenant.local']
       );
 
       // INSERT: criar um lead de teste
@@ -141,9 +141,9 @@ describe('Database Integration Tests', () => {
 
       // Setup: criar os registros de tenants ANTES dos leads (FK fk_leads_tenant exige)
       await connection.query(
-        `INSERT INTO tenants (id, name, created_at)
-         VALUES (?, ?, NOW()), (?, ?, NOW())`,
-        [tenant1Id, 'Tenant 1 Test', tenant2Id, 'Tenant 2 Test']
+        `INSERT INTO tenants (id, nome, dominio, created_at)
+         VALUES (?, ?, ?, NOW()), (?, ?, ?, NOW())`,
+        [tenant1Id, 'Tenant 1 Test', 'tenant1.local', tenant2Id, 'Tenant 2 Test', 'tenant2.local']
       );
 
       const lead1 = {
