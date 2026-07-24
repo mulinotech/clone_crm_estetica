@@ -1,5 +1,5 @@
-# CI pipeline — roda testes a cada push (MUL-30)
-# Objetivo: garantir que npm test executa com sucesso antes de merge
+# CI pipeline — roda testes a cada push (MUL-30, MUL-37)
+# MUL-37: Separação de testes unitários (mockados) e integração (com MySQL real)
 
 name: CI
 
@@ -10,7 +10,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  # Job 1: Testes unitários (rápidos, sem banco)
+  unit-tests:
     runs-on: ubuntu-latest
 
     strategy:
@@ -29,9 +30,67 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Run unit tests
+        run: npm run test:unit
         env:
-          # Skip database initialization in tests
           SKIP_DB_INIT: 'true'
+          NODE_ENV: test
+
+  # Job 2: Testes de integração (com MySQL real)
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    # MySQL service container (MUL-37)
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_root_password
+          MYSQL_DATABASE: musa_crm_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+        ports:
+          - 3306:3306
+        # Healthcheck: aguarda MySQL ficar pronto antes de rodar testes
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup test database
+        run: npm run test:db:setup
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          DB_NAME: musa_crm_test
+          NODE_ENV: test
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+          DB_NAME: musa_crm_test
+          SKIP_DB_INIT: 'false'
           NODE_ENV: test
