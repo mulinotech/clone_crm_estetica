@@ -19,18 +19,29 @@ const dbConfig = {
   multipleStatements: true
 };
 
+// Credenciais de admin para operações de DROP/CREATE database
+// No CI: usa root com MYSQL_ROOT_PASSWORD
+// Localmente: usa root (sem senha) ou env vars se definidas
+const adminConfig = {
+  host: process.env.DB_HOST || '127.0.0.1',
+  user: process.env.DB_ADMIN_USER || 'root',
+  password: process.env.DB_ADMIN_PASSWORD || process.env.DB_ROOT_PASSWORD || '',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  multipleStatements: true
+};
+
 /**
  * Recria o banco de teste do zero (limpa estado anterior)
  */
 async function recreateDatabase() {
   console.log('[SETUP] Recriando banco de teste...');
 
-  // Conecta sem especificar database para poder dropar/criar
+  // Conecta com credenciais de admin para poder dropar/criar banco
   const connection = await mysql.createConnection({
-    host: dbConfig.host,
-    user: dbConfig.user,
-    password: dbConfig.password,
-    port: dbConfig.port
+    host: adminConfig.host,
+    user: adminConfig.user,
+    password: adminConfig.password,
+    port: adminConfig.port
   });
 
   try {

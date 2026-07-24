@@ -81,6 +81,7 @@ jobs:
           DB_PORT: 3306
           DB_USER: test_user
           DB_PASSWORD: test_password
+          DB_ROOT_PASSWORD: test_root_password
           DB_NAME: musa_crm_test
           NODE_ENV: test
 
