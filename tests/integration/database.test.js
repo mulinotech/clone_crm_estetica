@@ -81,7 +81,8 @@ describe('Database Integration Tests', () => {
          testLead.status, testLead.source, testLead.date]
       );
 
-      expect(insertResult.affectedRows).toBe(1);
+      // FALHA PROPOSITAL: AC #4 — prova que CI quebra quando banco falha
+      expect(insertResult.affectedRows).toBe(999);
 
       // SELECT: ler o lead inserido
       const [rows] = await connection.query(
