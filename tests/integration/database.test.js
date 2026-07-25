@@ -66,8 +66,9 @@ describe('Database Integration Tests', () => {
       const tenantId = 'test_tenant';
 
       // Setup: criar tenant antes do lead (FK fk_leads_tenant exige)
+      // INSERT IGNORE evita colisão com o test_tenant do seed do setup-test-db.js
       await connection.query(
-        `INSERT INTO tenants (id, nome, dominio, created_at) VALUES (?, ?, ?, NOW())`,
+        `INSERT IGNORE INTO tenants (id, nome, dominio, created_at) VALUES (?, ?, ?, NOW())`,
         [tenantId, 'Test Tenant', 'test-tenant.local']
       );
 
