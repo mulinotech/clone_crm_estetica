@@ -141,8 +141,9 @@ describe('Database Integration Tests', () => {
       const tenant2Id = 'tenant_2';
 
       // Setup: criar os registros de tenants ANTES dos leads (FK fk_leads_tenant exige)
+      // INSERT IGNORE evita colisão caso os tenants já existam de outro teste
       await connection.query(
-        `INSERT INTO tenants (id, nome, dominio, created_at)
+        `INSERT IGNORE INTO tenants (id, nome, dominio, created_at)
          VALUES (?, ?, ?, NOW()), (?, ?, ?, NOW())`,
         [tenant1Id, 'Tenant 1 Test', 'tenant1.local', tenant2Id, 'Tenant 2 Test', 'tenant2.local']
       );
