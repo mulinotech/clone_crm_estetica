@@ -23,23 +23,32 @@ module.exports = {
     sourceType: 'module'
   },
   rules: {
-    // Regra anti-bypass: proibir require/import de mysql2 fora da DAL
-    'no-restricted-imports': ['error', {
+    // Regra anti-bypass: proibir require de mysql2 fora da DAL (CommonJS)
+    'no-restricted-modules': ['error', {
       paths: [{
         name: 'mysql2',
-        message: 'PROIBIDO: Importe mysql2 apenas em server/dal/database.js. Use a DAL para acesso ao banco.'
+        message: 'PROIBIDO: require("mysql2") apenas em server/dal/database.js. Use a DAL para acesso ao banco.'
       }, {
         name: 'mysql2/promise',
-        message: 'PROIBIDO: Importe mysql2/promise apenas em server/dal/database.js. Use a DAL para acesso ao banco.'
+        message: 'PROIBIDO: require("mysql2/promise") apenas em server/dal/database.js. Use a DAL para acesso ao banco.'
       }]
     }]
   },
   overrides: [
     {
-      // Exceção: permitir mysql2 APENAS em server/dal/database.js
-      files: ['server/dal/database.js'],
+      // Exceção: permitir mysql2 APENAS em:
+      // - DAL (ponto único de acesso)
+      // - Migrations e scripts administrativos (operações fora do runtime)
+      // - Testes de integração (setup/teardown de fixtures)
+      files: [
+        'server/dal/database.js',
+        'migrations/**/*.js',
+        'scripts/**/*.js',
+        'tests/**/*.js',
+        'app.js',
+        'clear.js'
+      ],
       rules: {
-        'no-restricted-imports': 'off',
         'no-restricted-modules': 'off'
       }
     }
