@@ -1531,6 +1531,7 @@ if (fs.existsSync(path.dirname(SOCKET_PATH))) {
   if (fs.existsSync(SOCKET_PATH)) {
     fs.unlinkSync(SOCKET_PATH);
   }
+  // eslint-disable-next-line no-unused-vars
   const server = app.listen(SOCKET_PATH, function() {
     console.log('Servidor rodando no socket: ' + SOCKET_PATH);
     // Permissão necessária para o LiteSpeed acessar o socket
