@@ -162,10 +162,12 @@ describe('MUL-32: Tenant Isolation Lock', () => {
       expect(fs.existsSync(eslintrcPath)).toBe(true);
 
       const eslintConfig = require(eslintrcPath);
-      expect(eslintConfig.rules['no-restricted-imports']).toBeDefined();
 
-      const restrictedImports = eslintConfig.rules['no-restricted-imports'][1];
-      const mysql2Restriction = restrictedImports.paths.find(p => p.name === 'mysql2/promise');
+      // MUL-32: Projeto usa CommonJS (require), então a regra é no-restricted-modules
+      expect(eslintConfig.rules['no-restricted-modules']).toBeDefined();
+
+      const restrictedModules = eslintConfig.rules['no-restricted-modules'][1];
+      const mysql2Restriction = restrictedModules.paths.find(p => p.name === 'mysql2/promise');
       expect(mysql2Restriction).toBeDefined();
       expect(mysql2Restriction.message).toContain('PROIBIDO');
     });
