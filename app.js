@@ -1183,14 +1183,8 @@ app.post('/api/evolution/instances/simulate-connect', function(req, res) {
   res.json({ success: true });
 });
 
-// MUL-33: Importar middleware de resolução de tenant por instância WhatsApp
-const { createResolveTenantWebhookMiddleware } = require('./server/middleware/resolve-tenant-webhook');
-const { scoreLeadWithGemini } = require('./server/services/lead-score');
-const { runWithTenantContext } = require('./server/utils/tenant-context');
-const resolveTenantWebhook = createResolveTenantWebhookMiddleware(pool);
-
-// 14. Webhook WhatsApp Evolution (MUL-33: com resolução de tenant e score Gemini)
-app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res) {
+// 14. Webhook WhatsApp Evolution
+app.post('/api/webhook/whatsapp', async function(req, res) {
   try {
     // R2: Validação defensiva do payload
     const payload = req.body;
@@ -1243,22 +1237,11 @@ app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res)
       return res.status(200).json({ status: 'unsupported', messageType });
     }
 
-    // MUL-33: tenant_id já está injetado no contexto pelo middleware resolveTenantWebhook
-    const tenantId = req.tenantId;
-
-    // Buscar se cliente ou lead já existe (isolado por tenant via tenant_id no contexto)
-    const [clients] = await pool.query(
-      'SELECT id FROM clients WHERE REPLACE(phone, "+", "") = ? AND tenant_id = ?',
-      [phone, tenantId]
-    );
-    const [leads] = await pool.query(
-      'SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ? AND tenant_id = ?',
-      [phone, tenantId]
-    );
+    // Buscar se cliente ou lead já existe
+    const [clients] = await pool.query('SELECT id FROM clients WHERE REPLACE(phone, "+", "") = ?', [phone]);
+    const [leads] = await pool.query('SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ?', [phone]);
 
     let targetId = '';
-    let isNewLead = false;
-
     if (clients.length > 0) {
       targetId = clients[0].id;
     } else if (leads.length > 0) {
@@ -1267,29 +1250,6 @@ app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res)
       // R3: Evitar duplicação de leads por corrida (INSERT ... ON DUPLICATE KEY ou transação)
       // Usando INSERT IGNORE para prevenir duplicação por telefone único
       targetId = 'l_' + Math.random().toString(36).substring(2, 9);
-      isNewLead = true;
-
-      // MUL-33: Score de lead via Gemini (antes de salvar)
-      let leadScore = null;
-      try {
-        const scoreResult = await scoreLeadWithGemini(content, contactName);
-        leadScore = JSON.stringify({
-          score: scoreResult.score,
-          category: scoreResult.category,
-          reasoning: scoreResult.reasoning
-        });
-        console.info('[Webhook WhatsApp] Score Gemini calculado', {
-          phone,
-          score: scoreResult.score,
-          category: scoreResult.category
-        });
-      } catch (scoreError) {
-        console.error('[Webhook WhatsApp] Erro ao calcular score Gemini, continuando sem score', {
-          error: scoreError.message,
-          phone
-        });
-        // Não bloqueia a captura do lead se o score falhar
-      }
 
       // Verificar novamente dentro de uma transação para evitar race condition
       const connection = await pool.getConnection();
@@ -1297,33 +1257,32 @@ app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res)
         await connection.beginTransaction();
 
         const [existingLeads] = await connection.query(
-          'SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ? AND tenant_id = ? FOR UPDATE',
-          [phone, tenantId]
+          'SELECT id FROM leads WHERE REPLACE(whatsapp, "+", "") = ? FOR UPDATE',
+          [phone]
         );
 
         if (existingLeads.length > 0) {
           // Lead criado por outra requisição concorrente
           targetId = existingLeads[0].id;
-          isNewLead = false;
           await connection.commit();
         } else {
-          // Criar novo lead (com tenant_id e score)
+          // Criar novo lead
           await connection.query(
-            'INSERT INTO leads (id, name, whatsapp, treatment, status, source, tenant_id, message, score_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [targetId, contactName, phone, 'Geral', 'novo', 'whatsapp', tenantId, content, leadScore]
+            'INSERT INTO leads (id, name, whatsapp, treatment, status, source) VALUES (?, ?, ?, ?, ?, ?)',
+            [targetId, contactName, phone, 'Geral', 'novo', 'whatsapp']
           );
           await connection.commit();
 
           // R4: Envio Evolution com try/catch para não crashar se falhar
           try {
             const welcome = `Seja muito bem-vinda à Nathi Estética Avançada! ✨\n\nRecebemos sua mensagem por aqui e nosso concierge de beleza já está ciente de seu contato. Como podemos ajudar no seu dia de beleza e cuidados? 🌸`;
-            const instanceName = req.instanceName; // MUL-33: usar a instância do tenant
+            const instanceName = await EvolutionService.getInstanceName();
             await EvolutionService.sendText(instanceName, phone, welcome);
 
             const interactionId = 'i_' + Math.random().toString(36).substring(2, 9);
-            await connection.query(
-              'INSERT INTO interactions (id, client_id, type, content, direction, tenant_id) VALUES (?, ?, ?, ?, ?, ?)',
-              [interactionId, targetId, 'whatsapp', welcome, 'out', tenantId]
+            await pool.query(
+              'INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)',
+              [interactionId, targetId, 'whatsapp', welcome, 'out']
             );
           } catch (sendError) {
             console.error('[Webhook WhatsApp] Falha ao enviar boas-vindas, mas lead foi salvo', {
@@ -1342,11 +1301,11 @@ app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res)
       }
     }
 
-    // Registrar interação de entrada (isolada por tenant)
+    // Registrar interação de entrada
     const newInteractionId = 'i_' + Math.random().toString(36).substring(2, 9);
     await pool.query(
-      'INSERT INTO interactions (id, client_id, type, content, direction, tenant_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [newInteractionId, targetId, 'whatsapp', content, 'in', tenantId]
+      'INSERT INTO interactions (id, client_id, type, content, direction) VALUES (?, ?, ?, ?, ?)',
+      [newInteractionId, targetId, 'whatsapp', content, 'in']
     );
 
     console.info('[Webhook WhatsApp] Mensagem processada com sucesso', { phone, targetId, messageType });
