@@ -137,21 +137,22 @@ describe('Database Integration Tests', () => {
   describe('Tenant isolation foundation', () => {
     test('should filter leads by tenant_id correctly', async () => {
       // Preparação: inserir leads de dois tenants diferentes
-      const tenant1Id = 'tenant_1';
-      const tenant2Id = 'tenant_2';
+      const timestamp = Date.now();
+      const tenant1Id = `tenant_1_${timestamp}`;
+      const tenant2Id = `tenant_2_${timestamp}`;
 
       // Setup: criar os registros de tenants ANTES dos leads (FK fk_leads_tenant exige)
-      // INSERT IGNORE evita colisão caso os tenants já existam de outro teste
       await connection.query(
-        `INSERT IGNORE INTO tenants (id, nome, dominio, created_at)
+        `INSERT INTO tenants (id, nome, dominio, created_at)
          VALUES (?, ?, ?, NOW()), (?, ?, ?, NOW())`,
-        [tenant1Id, 'Tenant 1 Test', 'tenant1.local', tenant2Id, 'Tenant 2 Test', 'tenant2.local']
+        [tenant1Id, 'Tenant 1 Test', `tenant1-${timestamp}.local`, tenant2Id, 'Tenant 2 Test', `tenant2-${timestamp}.local`]
       );
 
       const lead1 = {
-        id: `lead_t1_${Date.now()}`,
+        id: `lead_t1_${timestamp}`,
         tenant_id: tenant1Id,
-        whatsapp: '5515111111111',
+        // Whatsapp único baseado no timestamp — evita colisão com idx_leads_whatsapp_unique
+        whatsapp: `5515${timestamp}1`,
         name: 'Lead Tenant 1',
         treatment: 'Preenchimento',
         status: 'novo',
@@ -159,9 +160,10 @@ describe('Database Integration Tests', () => {
       };
 
       const lead2 = {
-        id: `lead_t2_${Date.now()}`,
+        id: `lead_t2_${timestamp}`,
         tenant_id: tenant2Id,
-        whatsapp: '5515222222222',
+        // Whatsapp único baseado no timestamp — evita colisão com idx_leads_whatsapp_unique
+        whatsapp: `5515${timestamp}2`,
         name: 'Lead Tenant 2',
         treatment: 'Botox',
         status: 'novo',
