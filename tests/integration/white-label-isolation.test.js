@@ -100,13 +100,13 @@ describe('MUL-34: White-Label Isolation & Super-Admin', () => {
     await pool.query(
       `INSERT INTO tenants (id, nome, dominio, instancia_whatsapp, status)
        VALUES (?, ?, ?, ?, ?)`,
-      [tenant1Id, 'Clínica A', 'clinica-a.test', 'ClinicaA_WhatsApp', 'teste']
+      [tenant1Id, 'Clínica A', 'clinica-a.test', 'ClinicaA_WhatsApp', 'ativo']
     );
 
     await pool.query(
       `INSERT INTO tenants (id, nome, dominio, instancia_whatsapp, status)
        VALUES (?, ?, ?, ?, ?)`,
-      [tenant2Id, 'Clínica B', 'clinica-b.test', 'ClinicaB_WhatsApp', 'teste']
+      [tenant2Id, 'Clínica B', 'clinica-b.test', 'ClinicaB_WhatsApp', 'ativo']
     );
   });
 
