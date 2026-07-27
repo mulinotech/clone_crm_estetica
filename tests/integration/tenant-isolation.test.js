@@ -190,4 +190,101 @@ describe('MUL-32: Tenant Isolation Lock', () => {
       }).rejects.toThrow('tenantId é obrigatório');
     });
   });
+
+  describe('MUL-49: Furo de isolamento com OR/precedência', () => {
+    test('SELECT com OR no WHERE deve isolar corretamente (precedência SQL)', async () => {
+      if (skipTests) {
+        console.log('MySQL não disponível, teste pulado');
+        return;
+      }
+
+      const tenantA = 'tenant_or_a';
+      const tenantB = 'tenant_or_b';
+
+      // Setup: criar tenants
+      await rawConnection.query(
+        `INSERT IGNORE INTO tenants (id, nome, dominio) VALUES (?, ?, ?), (?, ?, ?)`,
+        [tenantA, 'Tenant OR A', 'or-a.local', tenantB, 'Tenant OR B', 'or-b.local']
+      );
+
+      // Criar leads com status diferentes em cada tenant
+      const leadA1 = {
+        id: `lead_or_a1_${Date.now()}`,
+        tenant_id: tenantA,
+        whatsapp: '5515444444444',
+        name: 'Lead OR A1',
+        treatment: 'Botox',
+        status: 'novo',
+        date: new Date()
+      };
+
+      const leadA2 = {
+        id: `lead_or_a2_${Date.now()}`,
+        tenant_id: tenantA,
+        whatsapp: '5515444444445',
+        name: 'Lead OR A2',
+        treatment: 'Botox',
+        status: 'ativo',
+        date: new Date()
+      };
+
+      const leadB1 = {
+        id: `lead_or_b1_${Date.now()}`,
+        tenant_id: tenantB,
+        whatsapp: '5515555555555',
+        name: 'Lead OR B1',
+        treatment: 'Preenchimento',
+        status: 'novo',
+        date: new Date()
+      };
+
+      const leadB2 = {
+        id: `lead_or_b2_${Date.now()}`,
+        tenant_id: tenantB,
+        whatsapp: '5515555555556',
+        name: 'Lead OR B2',
+        treatment: 'Preenchimento',
+        status: 'ativo',
+        date: new Date()
+      };
+
+      await rawConnection.query(
+        `INSERT INTO leads (id, tenant_id, whatsapp, name, treatment, status, date)
+         VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          leadA1.id, leadA1.tenant_id, leadA1.whatsapp, leadA1.name, leadA1.treatment, leadA1.status, leadA1.date,
+          leadA2.id, leadA2.tenant_id, leadA2.whatsapp, leadA2.name, leadA2.treatment, leadA2.status, leadA2.date,
+          leadB1.id, leadB1.tenant_id, leadB1.whatsapp, leadB1.name, leadB1.treatment, leadB1.status, leadB1.date,
+          leadB2.id, leadB2.tenant_id, leadB2.whatsapp, leadB2.name, leadB2.treatment, leadB2.status, leadB2.date
+        ]
+      );
+
+      // Teste: SELECT com OR no contexto de tenant A
+      // Query original: "SELECT * FROM leads WHERE status = 'novo' OR status = 'ativo'"
+      // Sem correção vira: WHERE tenant_id = ? AND status = 'novo' OR status = 'ativo'
+      // Precedência SQL interpreta como: (tenant_id = ? AND status = 'novo') OR (status = 'ativo')
+      // → VAZAMENTO: o segundo ramo ignora tenant_id
+      const resultsA = await runWithTenantContext(tenantA, async () => {
+        return await select("SELECT * FROM leads WHERE status = 'novo' OR status = 'ativo'");
+      });
+
+      // Validação: todos os leads retornados devem ser do tenant A
+      expect(resultsA.length).toBeGreaterThan(0);
+      const allFromTenantA = resultsA.every(lead => lead.tenant_id === tenantA);
+      expect(allFromTenantA).toBe(true);
+
+      // PROVA DO FURO: nenhum lead do tenant B pode aparecer
+      const leadBInResults = resultsA.some(lead =>
+        lead.id === leadB1.id || lead.id === leadB2.id
+      );
+      expect(leadBInResults).toBe(false);
+
+      // Cleanup
+      await rawConnection.query(
+        'DELETE FROM leads WHERE id IN (?, ?, ?, ?)',
+        [leadA1.id, leadA2.id, leadB1.id, leadB2.id]
+      );
+      await rawConnection.query('DELETE FROM tenants WHERE id IN (?, ?)', [tenantA, tenantB]);
+    });
+  });
 });

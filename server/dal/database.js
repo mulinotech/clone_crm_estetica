@@ -169,7 +169,13 @@ async function deleteQuery(query, params = []) {
 /**
  * Injeta filtro tenant_id na query SQL.
  *
- * Estratégia: adicionar "AND tenant_id = ?" no WHERE existente, ou criar WHERE se não existir.
+ * Estratégia: adicionar "tenant_id = ? AND (condição_original)" no WHERE existente,
+ * ou criar WHERE se não existir.
+ *
+ * CORREÇÃO MUL-49: Parentetizar o WHERE original para evitar furo de isolamento
+ * com OR/precedência. Sem parênteses, "tenant_id = ? AND status = 'novo' OR status = 'ativo'"
+ * é interpretado como "(tenant_id = ? AND status = 'novo') OR (status = 'ativo')",
+ * vazando registros do segundo ramo do OR.
  *
  * @param {string} query - Query original
  * @returns {string} Query com filtro tenant_id injetado
@@ -181,14 +187,14 @@ function injectTenantFilter(query) {
   const whereMatch = normalized.match(/\bWHERE\b/i);
 
   if (whereMatch) {
-    // WHERE existe: adicionar AND tenant_id = ?
-    // Encontrar posição do WHERE e injetar logo após
+    // WHERE existe: adicionar tenant_id = ? AND (condição_original)
+    // IMPORTANTE: Parentetizar afterWhere para isolar precedência do OR
     const whereIndex = normalized.toUpperCase().indexOf('WHERE');
     const beforeWhere = normalized.slice(0, whereIndex + 5); // WHERE tem 5 chars
-    const afterWhere = normalized.slice(whereIndex + 5);
+    const afterWhere = normalized.slice(whereIndex + 5).trim();
 
-    // Injetar tenant_id = ? logo após WHERE
-    return `${beforeWhere} tenant_id = ? AND ${afterWhere}`;
+    // MUL-49: Envolver afterWhere em parênteses para evitar vazamento com OR
+    return `${beforeWhere} tenant_id = ? AND (${afterWhere})`;
   } else {
     // WHERE não existe: adicionar WHERE tenant_id = ? antes de ORDER BY, LIMIT, etc.
     // Detectar cláusulas de ordenação/limitação
