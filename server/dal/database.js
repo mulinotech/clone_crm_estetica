@@ -20,7 +20,7 @@
 'use strict';
 
 const mysql = require('mysql2/promise');
-const { requireTenantId } = require('../utils/tenant-context');
+const { requireTenantId, getTenantContext, isSuperAdmin } = require('../utils/tenant-context');
 
 /**
  * Pool de conexão MySQL (singleton).
@@ -208,6 +208,91 @@ function injectTenantFilter(query) {
 }
 
 /**
+ * MUL-34: Registra uma ação de auditoria para operações cross-tenant.
+ *
+ * @param {string} action - Tipo de ação (ex: 'listAllTenants', 'selectCrossTenant')
+ * @param {string|null} tenantId - Tenant afetado (null para ações globais)
+ * @param {string} querySummary - Resumo da query executada
+ * @param {number} resultCount - Quantidade de registros retornados
+ */
+async function logAudit(action, tenantId, querySummary, resultCount) {
+  if (!pool) {
+    console.warn('[DAL] Pool não inicializado, log de auditoria ignorado');
+    return;
+  }
+
+  const context = getTenantContext();
+  const adminUser = context?.adminUser || 'unknown';
+  const auditId = 'audit_' + Math.random().toString(36).substring(2, 15);
+
+  try {
+    await pool.query(
+      `INSERT INTO audit_log (id, admin_user, action, tenant_id, query_summary, result_count)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [auditId, adminUser, action, tenantId, querySummary, resultCount]
+    );
+  } catch (error) {
+    // Falha no log de auditoria não deve interromper a operação
+    console.error('[DAL] Erro ao registrar auditoria:', error.message);
+  }
+}
+
+/**
+ * MUL-34: Lista todos os tenants (cross-tenant).
+ *
+ * ATENÇÃO: Apenas super-admins podem chamar este método.
+ * Lança erro se isSuperAdmin não estiver ativo no contexto.
+ * Toda chamada é auditada na tabela audit_log.
+ *
+ * @returns {Promise<Array>} Array com todos os tenants
+ */
+async function listAllTenants() {
+  if (!isSuperAdmin()) {
+    throw new Error('[DAL] listAllTenants requer contexto super-admin (isSuperAdmin=true)');
+  }
+
+  if (!pool) {
+    throw new Error('[DAL] Pool não inicializado');
+  }
+
+  const [rows] = await pool.query('SELECT id, nome, dominio, instancia_whatsapp, status, created_at FROM tenants ORDER BY nome ASC');
+
+  // Registrar auditoria
+  await logAudit('listAllTenants', null, 'SELECT * FROM tenants', rows.length);
+
+  return rows;
+}
+
+/**
+ * MUL-34: Executa uma query SELECT cross-tenant (sem filtro de tenant_id).
+ *
+ * ATENÇÃO: Apenas super-admins podem chamar este método.
+ * Lança erro se isSuperAdmin não estiver ativo no contexto.
+ * Toda chamada é auditada na tabela audit_log.
+ *
+ * @param {string} query - Query SQL SELECT (SEM injeção automática de tenant_id)
+ * @param {Array} params - Parâmetros da query preparada
+ * @param {string|null} targetTenantId - Tenant específico sendo consultado (para auditoria)
+ * @returns {Promise<Array>} Array de resultados
+ */
+async function selectCrossTenant(query, params = [], targetTenantId = null) {
+  if (!isSuperAdmin()) {
+    throw new Error('[DAL] selectCrossTenant requer contexto super-admin (isSuperAdmin=true)');
+  }
+
+  if (!pool) {
+    throw new Error('[DAL] Pool não inicializado');
+  }
+
+  const [rows] = await pool.query(query, params);
+
+  // Registrar auditoria
+  await logAudit('selectCrossTenant', targetTenantId, query.substring(0, 200), rows.length);
+
+  return rows;
+}
+
+/**
  * Fecha o pool de conexão MySQL.
  * Usado principalmente em testes e shutdown graceful.
  */
@@ -226,5 +311,8 @@ module.exports = {
   insert,
   update,
   delete: deleteQuery,
-  closePool
+  closePool,
+  // MUL-34: Métodos cross-tenant auditados (somente super-admin)
+  listAllTenants,
+  selectCrossTenant
 };

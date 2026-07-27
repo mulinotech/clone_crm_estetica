@@ -28,10 +28,20 @@ function getTenantId() {
 /**
  * Obtém todo o contexto da requisição (tenant_id + metadados opcionais).
  *
- * @returns {Object|null} Objeto com tenantId e metadados ou null
+ * @returns {Object|null} Objeto com tenantId, isSuperAdmin e metadados ou null
  */
 function getTenantContext() {
   return asyncLocalStorage.getStore() || null;
+}
+
+/**
+ * Verifica se o contexto atual tem flag de super-admin ativa.
+ *
+ * @returns {boolean} true se isSuperAdmin está ativo no contexto
+ */
+function isSuperAdmin() {
+  const context = getTenantContext();
+  return context?.isSuperAdmin === true;
 }
 
 /**
@@ -50,6 +60,32 @@ function runWithTenantContext(tenantId, callback) {
 
   const store = {
     tenantId,
+    isSuperAdmin: false,
+    createdAt: new Date()
+  };
+
+  return asyncLocalStorage.run(store, callback);
+}
+
+/**
+ * Executa uma função dentro de um contexto de super-admin.
+ *
+ * MUL-34: Super-admin pode acessar dados cross-tenant de forma auditada.
+ * Flag isSuperAdmin=true permite uso de métodos cross-tenant na DAL.
+ *
+ * @param {string} adminUser - Email ou ID do super-admin (para auditoria)
+ * @param {Function} callback - Função a executar com contexto super-admin
+ * @returns {*} Retorna o resultado da callback
+ */
+function runWithSuperAdminContext(adminUser, callback) {
+  if (!adminUser) {
+    throw new Error('adminUser é obrigatório para runWithSuperAdminContext');
+  }
+
+  const store = {
+    tenantId: null, // Super-admin não está escopado a um tenant específico
+    isSuperAdmin: true,
+    adminUser,
     createdAt: new Date()
   };
 
@@ -77,5 +113,7 @@ module.exports = {
   getTenantId,
   getTenantContext,
   runWithTenantContext,
+  runWithSuperAdminContext,
+  isSuperAdmin,
   requireTenantId
 };

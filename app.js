@@ -1186,8 +1186,12 @@ app.post('/api/evolution/instances/simulate-connect', function(req, res) {
 // MUL-33: Importar middleware de resolução de tenant por instância WhatsApp
 const { createResolveTenantWebhookMiddleware } = require('./server/middleware/resolve-tenant-webhook');
 const { scoreLeadWithGemini } = require('./server/services/lead-score');
-const { runWithTenantContext } = require('./server/utils/tenant-context');
+const { runWithTenantContext, runWithSuperAdminContext } = require('./server/utils/tenant-context');
 const resolveTenantWebhook = createResolveTenantWebhookMiddleware(pool);
+
+// MUL-34: Importar serviços de provisionamento e DAL cross-tenant
+const { createTenant } = require('./server/services/tenant-provisioning');
+const { listAllTenants } = require('./server/dal/database');
 
 // 14. Webhook WhatsApp Evolution (MUL-33: com resolução de tenant e score Gemini)
 app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res) {
@@ -1366,6 +1370,77 @@ app.post('/api/webhook/whatsapp', resolveTenantWebhook, async function(req, res)
   }
 });
 
+
+// MUL-34: Rotas de Admin Super-Admin (Cross-Tenant)
+
+/**
+ * Middleware de autenticação super-admin.
+ *
+ * Verifica se a requisição tem chave de API de super-admin válida.
+ * Se válida, injeta contexto super-admin; caso contrário, retorna 403.
+ */
+function requireSuperAdmin(req, res, next) {
+  const apiKey = req.headers['x-super-admin-key'];
+  const validKey = process.env.SUPER_ADMIN_KEY || 'musa-super-admin-dev-key';
+
+  if (!apiKey || apiKey !== validKey) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Super-admin authentication required'
+    });
+  }
+
+  // Injetar contexto super-admin
+  const adminUser = req.headers['x-admin-user'] || 'super-admin';
+  runWithSuperAdminContext(adminUser, () => {
+    next();
+  });
+}
+
+// 14.1. Listar Todos os Tenants (Cross-Tenant)
+app.get('/api/admin/tenants', requireSuperAdmin, async function(req, res) {
+  try {
+    const tenants = await listAllTenants();
+    res.json(tenants);
+  } catch (error) {
+    console.error('[Admin] Erro ao listar tenants:', error.message);
+    res.status(500).json({ error: 'Erro ao listar tenants', details: error.message });
+  }
+});
+
+// 14.2. Criar Novo Tenant (Provisionamento)
+app.post('/api/admin/tenants', requireSuperAdmin, async function(req, res) {
+  const { nome, dominio, instanciaWhatsapp, dominiosAlternativos, status } = req.body;
+
+  if (!nome || !dominio || !instanciaWhatsapp) {
+    return res.status(400).json({
+      error: 'Campos obrigatórios ausentes',
+      required: ['nome', 'dominio', 'instanciaWhatsapp']
+    });
+  }
+
+  try {
+    const tenant = await createTenant({
+      nome,
+      dominio,
+      instanciaWhatsapp,
+      dominiosAlternativos,
+      status
+    });
+
+    res.status(201).json({
+      tenant,
+      instructions: {
+        dns: `Configure um registro DNS A/CNAME apontando "${dominio}" para o IP/domínio do servidor Musa CRM.`,
+        evolutionApi: `Crie a instância WhatsApp "${instanciaWhatsapp}" na Evolution API e conecte-a.`,
+        acesso: `Login inicial: admin@${dominio} / admin123 (TROCAR NO PRIMEIRO ACESSO)`
+      }
+    });
+  } catch (error) {
+    console.error('[Admin] Erro ao criar tenant:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tenant', details: error.message });
+  }
+});
 
 // 15. PDF Report Generation Endpoint
 app.post('/api/reports/generate', async function(req, res) {
